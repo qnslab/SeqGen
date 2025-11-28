@@ -22,15 +22,18 @@ import matplotlib.pyplot as plt
 # Make local packages importable without install
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 SRC_DIR = os.path.join(REPO_ROOT, "src")
-PLUGIN_DIR = os.path.join(REPO_ROOT, "plugins", "plugins")
+PLUGINS_ROOT = os.path.join(REPO_ROOT, "plugins")
 if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
-if PLUGIN_DIR not in sys.path:
-    sys.path.insert(0, PLUGIN_DIR)
+if PLUGINS_ROOT not in sys.path:
+    sys.path.insert(0, PLUGINS_ROOT)
 
 from plugins.pulseblaster.camera_sequences.p_esr import seq_p_esr  # type: ignore
 from seqgen.pulse_kernel import PulseKernel  # type: ignore
 from plugins.pulseblaster.mock_pulseblaster import MockPulseBlaster  # type: ignore
+
+IMG_DIR = os.path.join(REPO_ROOT, "examples", "img")
+os.makedirs(IMG_DIR, exist_ok=True)
 
 def main():
     # Define channels (bit strings are placeholders for hardware; here for completeness)
@@ -67,21 +70,20 @@ def main():
     # Visualize the signal kernel through the transformation stages
     print("Step 1: Original kernel (channel delays not yet shifted)")
     pk_sig.reset_kernel()  # ensure original view
-    pk_sig.plot_pulses(title="Original Kernel")
+    pk_sig.plot_pulses(title="Original Kernel", save_path=os.path.join(IMG_DIR, "p_esr_step1_original.png"), show=False)
 
     print("Step 2: After shift_ch_delays() — pulses move earlier by ch_delay")
     pk_sig.reset_kernel()
     pk_sig.shift_ch_delays()
-    pk_sig.plot_pulses(title="After shift_ch_delays()")
+    pk_sig.plot_pulses(title="After shift_ch_delays()", save_path=os.path.join(IMG_DIR, "p_esr_step2_shifted.png"), show=False)
 
     print("Step 3: After wrap_pulses() — negative-start segments wrap to end")
     pk_sig.wrap_pulses()
-    pk_sig.plot_pulses(title="After wrap_pulses()")
+    pk_sig.plot_pulses(title="After wrap_pulses()", save_path=os.path.join(IMG_DIR, "p_esr_step3_wrapped.png"), show=False)
 
     print("Step 4: Instruction view after convert_to_instructions()")
     pk_sig.convert_to_instructions(const_chs=["camera"])  # camera held high across each instruction
-    pk_sig.plot_inst_kernel(title="Instruction View")
-    plt.show()
+    pk_sig.plot_inst_kernel(title="Instruction View", save_path=os.path.join(IMG_DIR, "p_esr_step4_instructions.png"), show=False)
 
 
 if __name__ == "__main__":

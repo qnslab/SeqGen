@@ -1,6 +1,6 @@
 """SeqGen internal plugins package.
 
-Provides device adapters such as PulseBlaster.
+Device adapters (e.g., PulseBlaster) are available under subpackages
+like ``plugins.pulseblaster``. Imports are intentionally minimal here
+to avoid heavy dependencies during partial imports.
 """
-
-from . import pulseblaster  # re-export subpackage

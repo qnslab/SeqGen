@@ -207,7 +207,7 @@ class PulseKernel:
         self.insts = combined_insts
         return
 
-    def plot_pulses(self, title=None):
+    def plot_pulses(self, title=None, save_path: str | None = None, show: bool = True):
         self.get_end_time()
         plt.figure(figsize=(10, 5))
         ch_states = [0] * len(self.ch_defs)
@@ -234,9 +234,12 @@ class PulseKernel:
         plt.xlabel("Time (s)")
         if title is not None:
             plt.title(title)
-        plt.show()
+        if save_path:
+            plt.savefig(save_path, bbox_inches="tight", dpi=150)
+        if show:
+            plt.show()
 
-    def plot_inst_kernel(self, title=None):
+    def plot_inst_kernel(self, title=None, save_path: str | None = None, show: bool = True):
         insts = self.insts
         ch_defs = self.ch_defs
         plt.figure(figsize=(10, 5))
@@ -299,4 +302,7 @@ class PulseKernel:
         plt.xlabel("Time (s)")
         if title is not None:
             plt.title(title)
-        # plt.show()
+        if save_path:
+            plt.savefig(save_path, bbox_inches="tight", dpi=150)
+        if show:
+            plt.show()

@@ -47,3 +47,19 @@ Design notes
 - Times are in integer nanoseconds.
 - `finish_kernel()` snapshots the initial kernel; `update_var_durs()` recomputes shifts.
 - `convert_to_instructions()` merges adjacent identical states to minimize instructions.
+
+**Pulsed ESR Example**
+- Build and visualize a pulsed ESR kernel through its transformation steps.
+- Generate figures with:
+```
+python examples/plot_p_esr_sequence.py
+```
+- Resulting plots (saved under `examples/img/`):
+    - Original kernel (delays in place)
+        ![Original Kernel](examples/img/p_esr_step1_original.png)
+    - After `shift_ch_delays()` (per-channel delays shift pulses earlier)
+        ![Shifted](examples/img/p_esr_step2_shifted.png)
+    - After `wrap_pulses()` (negative-start segments wrap to end)
+        ![Wrapped](examples/img/p_esr_step3_wrapped.png)
+    - Instruction view (`convert_to_instructions()`), with `camera` held constant
+        ![Instructions](examples/img/p_esr_step4_instructions.png)

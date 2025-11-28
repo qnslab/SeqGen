@@ -1,6 +1,10 @@
-from .pulseblaster import PulseBlaster
+"""PulseBlaster plugin package.
 
-# import the camera sequences to make them available
-from pulseblaster.camera_sequences import (
-    cw_esr, p_esr, rabi, ramsey, spin_echo, t1
-)
+Submodules:
+- pulseblaster: hardware adapter class
+- camera_sequences: device-specific sequence builders
+
+Imports are intentionally light to avoid heavy dependencies during partial imports.
+"""
+
+__all__ = ["pulseblaster", "camera_sequences"]
