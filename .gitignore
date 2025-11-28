@@ -1,0 +1,49 @@
+# Python bytecode and cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build and packaging
+*.egg-info/
+.eggs/
+dist/
+build/
+MANIFEST
+*.egg
+
+# Jupyter notebooks (keep notebooks, ignore checkpoints)
+.ipynb_checkpoints/
+
+# Virtual environments
+.env
+.venv/
+venv/
+env/
+ENV/
+
+# IDE/editor settings
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Test, coverage, and analysis caches
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.cache/
+
+# Compiled libraries
+*.so
+*.dylib
+*.dll
+
+# Local databases
+*.sqlite
+*.db
