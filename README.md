@@ -42,6 +42,22 @@ pk.plot_inst_kernel()
 
 Adapters
 - See `seqgen/pulseblaster` for an example SpinCore PulseBlaster adapter.
+- See `plugins/keysight_awg` for a Keysight 9336A-compatible adapter that compiles the same sequence API into marker waveforms and can export them as `.npz` files.
+
+Keysight AWG example
+```python
+from plugins.keysight_awg import Keysight9336A
+
+awg = Keysight9336A(
+    ch_defs=ch_defs,
+    sequence_params=sequence_params,
+    resource_name="TCPIP0::192.168.0.10::inst0::INSTR",
+    sample_rate=1e9,
+)
+
+seq_p_esr(awg, sequence_params, exp_t=20e-6, sweep_len=1)
+awg.save_waveforms("keysight_p_esr.npz")
+```
 
 Design notes
 - Times are in integer nanoseconds.

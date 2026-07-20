@@ -1,9 +1,13 @@
 # This function defines the ODMR sequence for the pulseblaster
 from __future__ import annotations
 
+import logging
 import typing
 
-from loguru import logger
+try:
+    from loguru import logger
+except Exception:
+    logger = logging.getLogger(__name__)
 
 if typing.TYPE_CHECKING:
     from ..pulseblaster import PulseBlaster

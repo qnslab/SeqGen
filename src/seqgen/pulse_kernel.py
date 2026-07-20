@@ -1,4 +1,5 @@
 import copy
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -207,7 +208,7 @@ class PulseKernel:
         self.insts = combined_insts
         return
 
-    def plot_pulses(self, title=None, save_path: str | None = None, show: bool = True):
+    def plot_pulses(self, title=None, save_path: Optional[str] = None, show: bool = True):
         self.get_end_time()
         plt.figure(figsize=(10, 5))
         ch_states = [0] * len(self.ch_defs)
@@ -239,7 +240,7 @@ class PulseKernel:
         if show:
             plt.show()
 
-    def plot_inst_kernel(self, title=None, save_path: str | None = None, show: bool = True):
+    def plot_inst_kernel(self, title=None, save_path: Optional[str] = None, show: bool = True):
         insts = self.insts
         ch_defs = self.ch_defs
         plt.figure(figsize=(10, 5))

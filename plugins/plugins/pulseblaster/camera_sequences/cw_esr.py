@@ -2,9 +2,13 @@
 from __future__ import annotations
 
 import copy
+import logging
 import typing
 
-from loguru import logger
+try:
+    from loguru import logger
+except Exception:
+    logger = logging.getLogger(__name__)
 
 from seqgen.pulse_kernel import PulseKernel
 
