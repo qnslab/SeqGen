@@ -2,8 +2,6 @@ README.md
 pyproject.toml
 src/seqgen/__init__.py
 src/seqgen/pulse_kernel.py
-src/seqgen/pulse_series.py
-src/seqgen/sequence_plotting.py
 src/seqgen.egg-info/PKG-INFO
 src/seqgen.egg-info/SOURCES.txt
 src/seqgen.egg-info/dependency_links.txt

@@ -1,15 +1,48 @@
 import copy
-from typing import Optional
+from enum import Enum
+from typing import Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 
+class ChannelType(Enum):
+    """Distinguishes on/off digital channels from continuous analog channels.
+
+    Digital channels (e.g. PulseBlaster TTLs, Pulse Streamer digital outputs)
+    are either on or off for the duration of a pulse. Analog channels (e.g.
+    Pulse Streamer's two analog outputs, AWG I/Q lines) carry a numeric
+    ``level`` (typically volts, or a normalized amplitude) that is held for
+    the duration of a segment.
+    """
+
+    DIGITAL = "digital"
+    ANALOG = "analog"
+
+    @classmethod
+    def coerce(cls, value: Union["ChannelType", str]) -> "ChannelType":
+        if isinstance(value, ChannelType):
+            return value
+        return cls(str(value).lower())
+
+
 class PulseKernel:
-    def __init__(self, ch_defs):
+    def __init__(self, ch_defs, ch_types=None, idle_levels=None):
         self.ch_defs = ch_defs
+        # Every channel defaults to DIGITAL so existing PulseBlaster-style
+        # kernels (digital-only) keep working without any changes.
+        self.ch_types = {
+            ch: ChannelType.coerce(ch_types[ch]) if ch_types and ch in ch_types else ChannelType.DIGITAL
+            for ch in ch_defs
+        }
+        # Baseline level reported for a channel when no explicit pulse is
+        # active (e.g. an analog output resting at 0 V between segments).
+        self.idle_levels = {
+            ch: float(idle_levels[ch]) if idle_levels and ch in idle_levels else 0.0
+            for ch in ch_defs
+        }
         self.kernel = {
-            ch: {"start": [], "dur": [], "state": [], "var_dur": [], "ch_delay": []}
+            ch: {"start": [], "dur": [], "state": [], "var_dur": [], "ch_delay": [], "level": []}
             for ch in ch_defs
         }
 
@@ -45,7 +78,7 @@ class PulseKernel:
                 dur = self.shortest_pulse
         return dur
 
-    def append_pulse(self, chs, dur, var_dur=False, ch_delay=0):
+    def append_pulse(self, chs, dur, var_dur=False, ch_delay=0, level=1.0):
         dur = self.check_duration(dur, var_dur)
         start_time = self.get_end_time()
         for ch in chs:
@@ -54,9 +87,10 @@ class PulseKernel:
             self.kernel[ch]["state"].append(True)
             self.kernel[ch]["var_dur"].append(var_dur)
             self.kernel[ch]["ch_delay"].append(ch_delay)
+            self.kernel[ch]["level"].append(level)
         return
 
-    def add_pulse(self, chs, start_time, dur, var_dur=False, ch_delay=0):
+    def add_pulse(self, chs, start_time, dur, var_dur=False, ch_delay=0, level=1.0):
         dur = self.check_duration(dur, var_dur)
         if chs is None or chs == [] or chs == "":
             for ch in self.ch_defs:
@@ -65,6 +99,7 @@ class PulseKernel:
                 self.kernel[ch]["ch_delay"].append(ch_delay)
                 self.kernel[ch]["var_dur"].append(var_dur)
                 self.kernel[ch]["state"].append(False)
+                self.kernel[ch]["level"].append(self.idle_levels[ch])
         else:
             for ch in chs:
                 self.kernel[ch]["start"].append(start_time)
@@ -72,6 +107,7 @@ class PulseKernel:
                 self.kernel[ch]["ch_delay"].append(ch_delay)
                 self.kernel[ch]["var_dur"].append(var_dur)
                 self.kernel[ch]["state"].append(True)
+                self.kernel[ch]["level"].append(level)
         return start_time + dur
 
     def append_delay(self, dur, var_dur=False):
@@ -84,6 +120,7 @@ class PulseKernel:
                 self.kernel[ch]["ch_delay"].append(0)
                 self.kernel[ch]["var_dur"].append(var_dur)
                 self.kernel[ch]["state"].append(False)
+                self.kernel[ch]["level"].append(self.idle_levels[ch])
             return
 
     def add_delay(self, start_time, dur, var_dur=False, kernel=None):
@@ -96,6 +133,7 @@ class PulseKernel:
             kernel[ch]["ch_delay"].append(0)
             kernel[ch]["var_dur"].append(var_dur)
             kernel[ch]["state"].append(False)
+            kernel[ch]["level"].append(self.idle_levels[ch])
         return kernel
 
     def reset_kernel(self):
@@ -156,9 +194,10 @@ class PulseKernel:
                 shift_time = abs(start_time)
                 dur = self.kernel[key]["dur"][idx]
                 dur_end = shift_time if dur > shift_time else dur
-                self.add_pulse([key], prev_end_time + start_time, dur_end, 0)
+                level = self.kernel[key]["level"][idx]
+                self.add_pulse([key], prev_end_time + start_time, dur_end, 0, level=level)
                 if self.kernel[key]["dur"][idx] > shift_time:
-                    self.add_pulse([key], 0, self.kernel[key]["dur"][idx] - shift_time, 0)
+                    self.add_pulse([key], 0, self.kernel[key]["dur"][idx] - shift_time, 0, level=level)
         for key in self.kernel:
             negative_pulses = [(idx, start_time) for idx, start_time in enumerate(self.kernel[key]["start"]) if start_time < 0]
             for idx, start_time in negative_pulses[::-1]:
@@ -167,6 +206,7 @@ class PulseKernel:
                 self.kernel[key]["ch_delay"].pop(idx)
                 self.kernel[key]["state"].pop(idx)
                 self.kernel[key]["var_dur"].pop(idx)
+                self.kernel[key]["level"].pop(idx)
         self.pulses_shifted = True
 
     def convert_to_instructions(self, const_chs=[]):
@@ -183,6 +223,7 @@ class PulseKernel:
         unique_times = sorted(unique_times)
         for time in unique_times:
             active_chs = []
+            levels = {}
             for ch in self.kernel:
                 for idx in range(len(self.kernel[ch]["start"])):
                     start_time = self.kernel[ch]["start"][idx]
@@ -190,23 +231,46 @@ class PulseKernel:
                     if start_time <= time < end_time:
                         if self.kernel[ch]["state"][idx]:
                             active_chs.append(ch)
-            insts.append({"time": time, "active_chs": active_chs})
+                            levels[ch] = self.kernel[ch]["level"][idx]
+                        else:
+                            levels.setdefault(ch, self.idle_levels[ch])
+                        break
+                else:
+                    levels.setdefault(ch, self.idle_levels[ch])
+            insts.append({"time": time, "active_chs": active_chs, "levels": levels})
         for idx in range(len(insts) - 1):
             insts[idx]["dur"] = insts[idx + 1]["time"] - insts[idx]["time"]
         insts = insts[:-1]
         updated_insts = []
         for inst in insts:
-            updated_insts.append({"active_chs": inst["active_chs"], "dur": inst["dur"], "const_chs": const_chs})
+            updated_insts.append(
+                {
+                    "active_chs": inst["active_chs"],
+                    "dur": inst["dur"],
+                    "const_chs": const_chs,
+                    "levels": inst["levels"],
+                }
+            )
         self.insts = updated_insts
         combined_insts = []
         for idx in range(len(self.insts) - 1):
-            if self.insts[idx]["active_chs"] == self.insts[idx + 1]["active_chs"]:
+            if (
+                self.insts[idx]["active_chs"] == self.insts[idx + 1]["active_chs"]
+                and self.insts[idx]["levels"] == self.insts[idx + 1]["levels"]
+            ):
                 self.insts[idx + 1]["dur"] += self.insts[idx]["dur"]
             else:
                 combined_insts.append(self.insts[idx])
         combined_insts.append(self.insts[-1])
         self.insts = combined_insts
         return
+
+    def _analog_height(self, level):
+        # Map a bipolar level (typically -1..1 V, e.g. Pulse Streamer analog
+        # outputs) onto the channel's plotting band, clamped to [0, 1].
+        frac = (float(level) + 1.0) / 2.0
+        frac = min(max(frac, 0.0), 1.0)
+        return self.plt_height * frac
 
     def plot_pulses(self, title=None, save_path: Optional[str] = None, show: bool = True):
         self.get_end_time()
@@ -216,15 +280,19 @@ class PulseKernel:
             ch_states[i] = ch_states[i] + i * self.plt_offset
         for ch in self.kernel:
             ch_index = list(self.kernel.keys()).index(ch)
+            is_analog = self.ch_types[ch] == ChannelType.ANALOG
             if len(self.kernel[ch]["start"]) > 0:
                 for idx in range(len(self.kernel[ch]["start"])):
                     t = self.kernel[ch]["start"][idx]
                     dur = self.kernel[ch]["dur"][idx]
                     if self.kernel[ch]["state"][idx]:
-                        plt.plot([t, t + dur], [ch_states[ch_index] + self.plt_height, ch_states[ch_index] + self.plt_height], color=self.line_colors[ch_index])
-                        plt.fill_between([t, t + dur], ch_states[ch_index], ch_states[ch_index] + self.plt_height, color=self.fill_colors[ch_index])
-                        plt.plot([t, t], [ch_states[ch_index], ch_states[ch_index] + self.plt_height], self.line_colors[ch_index])
-                        plt.plot([t + dur, t + dur], [ch_states[ch_index], ch_states[ch_index] + self.plt_height], self.line_colors[ch_index])
+                        top = ch_states[ch_index] + (
+                            self._analog_height(self.kernel[ch]["level"][idx]) if is_analog else self.plt_height
+                        )
+                        plt.plot([t, t + dur], [top, top], color=self.line_colors[ch_index])
+                        plt.fill_between([t, t + dur], ch_states[ch_index], top, color=self.fill_colors[ch_index])
+                        plt.plot([t, t], [ch_states[ch_index], top], self.line_colors[ch_index])
+                        plt.plot([t + dur, t + dur], [ch_states[ch_index], top], self.line_colors[ch_index])
                     else:
                         plt.plot([t, t + dur], [ch_states[ch_index], ch_states[ch_index]], self.line_colors[ch_index])
                 if self.kernel[ch]["start"][-1] + self.kernel[ch]["dur"][-1] < self.total_time:
@@ -268,13 +336,24 @@ class PulseKernel:
         ]
         prev_chs = []
         prev_const_chs = []
+        prev_tops = {}
         for inst in insts:
+            tops = {}
             for ch in inst["active_chs"]:
                 ch_index = list(ch_defs.keys()).index(ch)
-                plt.plot([t, t + inst["dur"]], [chs[ch_index] + 1, chs[ch_index] + 1], color=line_colors[ch_index])
-                plt.fill_between([t, t + inst["dur"]], chs[ch_index], chs[ch_index] + 1, color=fill_colors[ch_index])
+                is_analog = self.ch_types[ch] == ChannelType.ANALOG
+                frac = min(max((float(inst["levels"].get(ch, 1.0)) + 1.0) / 2.0, 0.0), 1.0) if is_analog else 1.0
+                top = chs[ch_index] + frac
+                tops[ch] = top
+                plt.plot([t, t + inst["dur"]], [top, top], color=line_colors[ch_index])
+                plt.fill_between([t, t + inst["dur"]], chs[ch_index], top, color=fill_colors[ch_index])
                 if ch not in prev_chs:
-                    plt.plot([t, t], [chs[ch_index], chs[ch_index] + 1], line_colors[ch_index])
+                    plt.plot([t, t], [chs[ch_index], top], line_colors[ch_index])
+                elif prev_tops.get(ch) != top:
+                    # Level changed while the channel stayed active (e.g. an
+                    # analog step): connect the two heights instead of
+                    # leaving a gap.
+                    plt.plot([t, t], [prev_tops[ch], top], line_colors[ch_index])
             for ch in inst["const_chs"]:
                 ch_index = list(ch_defs.keys()).index(ch)
                 dur = inst["dur"]
@@ -295,9 +374,11 @@ class PulseKernel:
                     plt.plot([t, t + inst["dur"]], [chs[ch_index], chs[ch_index]], line_colors[ch_index])
                 if ch in prev_chs and ch not in inst["active_chs"]:
                     ch_index = list(ch_defs.keys()).index(ch)
-                    plt.plot([t, t], [chs[ch_index] + 1, chs[ch_index]], line_colors[ch_index])
+                    prev_top = prev_tops.get(ch, chs[ch_index] + 1)
+                    plt.plot([t, t], [prev_top, chs[ch_index]], line_colors[ch_index])
             prev_chs = inst["active_chs"]
             prev_const_chs = inst["const_chs"]
+            prev_tops = tops
             t += inst["dur"]
         plt.yticks(chs + 0.5, list(ch_defs.keys()))
         plt.xlabel("Time (s)")

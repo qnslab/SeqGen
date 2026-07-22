@@ -14,6 +14,10 @@ dependencies = [
     "seqgen", # Resolved from workspace
 ]
 
+[project.optional-dependencies]
+keysight_awg = ["pyvisa"]
+pulse_streamer = ["pulsestreamer"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["plugins"]
 
