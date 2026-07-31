@@ -64,7 +64,7 @@ sequence_params = {
 
 sweep_x = np.linspace(20, 500, 51) * 1e-9
 
-ip_or_serial = None  # edit to your Pulse Streamer's IP/hostname/serial to stream to hardware; leave None to compile offline only
+ip_or_serial = '169.254.8.2'  # edit to your Pulse Streamer's IP/hostname/serial to stream to hardware; leave None to compile offline only
 
 adapter = PulseStreamerAdapter(ch_defs=ch_defs, sequence_params=sequence_params, ip_address=ip_or_serial)
 connected, msg = adapter.open()

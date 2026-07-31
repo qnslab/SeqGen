@@ -71,7 +71,7 @@ def seq_rabi(
     trigger_loops = int(trigger_loops * 1.05)
 
     logger.info(
-        "Programming Ramsey sequence with the following parameters:" +
+        "Programming Rabi sequence with the following parameters:" +
         f"\nLaser duration: {laser_dur} ns" +
         f"\nFirst RF pulse duration: {time_list[0]} ns" +
         f"\nLast RF pulse duration: {time_list[-1]} ns" +
