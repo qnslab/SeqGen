@@ -12,12 +12,13 @@ Requires-Dist: loguru
 SeqGen
 ======
 
-SeqGen is a lightweight framework to define abstract pulse kernels and convert them into device-specific instruction sequences. It helps you build reusable kernels and assemble larger, more complex sequences, while keeping hardware adapters pluggable (e.g., SpinCore PulseBlaster).
+SeqGen is a lightweight framework to define abstract pulse kernels and convert them into device-specific instruction sequences. It helps you build reusable kernels and assemble larger, more complex sequences, while keeping hardware adapters pluggable (e.g., SpinCore PulseBlaster, Keysight AWGs, Swabian Instruments Pulse Streamer 8/2).
 
 Key concepts
 - PulseKernel: channel-oriented kernel with pulses, delays, optional variable durations.
-- Instructions: derived from kernels, a flat list of active channels + durations, plus optional constant channels.
-- Adapters: device-specific modules that translate instructions to hardware commands.
+- ChannelType: each channel is declared `DIGITAL` (on/off, the default) or `ANALOG` (carries a numeric `level`, e.g. volts). Mixing both in the same kernel lets you program TTL markers and analog waveforms (e.g. MW I/Q) with the same API.
+- Instructions: derived from kernels, a flat list of active (digital) channels + durations, a `levels` dict giving every channel's numeric level (0/1 for digital, the programmed value for analog), plus optional constant channels.
+- Adapters: device-specific modules that translate instructions to hardware commands, digital patterns, and/or analog waveforms.
 
 Install
 ```
@@ -45,6 +46,26 @@ pk.update_var_durs(200)     # update variable durations
 pk.convert_to_instructions(const_chs=["camera"])  # device-agnostic
 ```
 
+Digital + analog channels
+```python
+from seqgen import ChannelType, PulseKernel
+
+ch_defs = {"laser": 0, "camera": 1, "mw_i": 0, "mw_q": 1}
+ch_types = {
+    "laser": ChannelType.DIGITAL,
+    "camera": ChannelType.DIGITAL,
+    "mw_i": ChannelType.ANALOG,
+    "mw_q": ChannelType.ANALOG,
+}
+
+pk = PulseKernel(ch_defs, ch_types=ch_types)   # idle_levels defaults every channel to 0.0
+pk.add_pulse(["laser"], 0, 1_000)              # digital pulse (on/off)
+pk.append_pulse(["mw_i"], 300, level=0.8)      # analog pulse at 0.8 V
+pk.append_pulse(["mw_q"], 300, level=-0.4)     # analog pulse at -0.4 V
+pk.finish_kernel()
+```
+Any pulse/delay method (`add_pulse`, `append_pulse`, `add_delay`, `append_delay`) accepts an optional `level` (defaults to `1.0`, i.e. "on", for digital channels). `PulseKernel(ch_defs, ch_types=..., idle_levels=...)` lets you set a per-channel baseline (e.g. a non-zero analog bias) reported whenever the channel isn't explicitly pulsing. Channels not listed in `ch_types` default to `DIGITAL`, so existing digital-only kernels are unaffected.
+
 Plotting
 ```python
 pk.plot_pulses()
@@ -52,8 +73,9 @@ pk.plot_inst_kernel()
 ```
 
 Adapters
-- See `seqgen/pulseblaster` for an example SpinCore PulseBlaster adapter.
+- See `plugins/pulseblaster` for an example SpinCore PulseBlaster adapter (digital only).
 - See `plugins/keysight_awg` for a Keysight 9336A-compatible adapter that compiles the same sequence API into marker waveforms and can export them as `.npz` files.
+- See `plugins/pulse_streamer` for a Swabian Instruments Pulse Streamer 8/2 adapter with native digital (8 ch) + analog (2 ch) output support.
 
 Keysight AWG example
 ```python
@@ -69,6 +91,34 @@ awg = Keysight9336A(
 seq_p_esr(awg, sequence_params, exp_t=20e-6, sweep_len=1)
 awg.save_waveforms("keysight_p_esr.npz")
 ```
+
+Swabian Pulse Streamer 8/2 example
+```python
+from seqgen import ChannelType
+from plugins.pulse_streamer import PulseStreamerAdapter
+
+# ch_defs maps channel name -> hardware channel index (digital: 0-7, analog: 0-1)
+ch_defs = {"laser": 0, "rf_x": 1, "camera": 2, "rf_trig": 3, "mw_i": 0, "mw_q": 1}
+ch_types = {
+    "laser": ChannelType.DIGITAL,
+    "rf_x": ChannelType.DIGITAL,
+    "camera": ChannelType.DIGITAL,
+    "rf_trig": ChannelType.DIGITAL,
+    "mw_i": ChannelType.ANALOG,
+    "mw_q": ChannelType.ANALOG,
+}
+
+ps = PulseStreamerAdapter(
+    ch_defs=ch_defs,
+    sequence_params=sequence_params,
+    ch_types=ch_types,
+    ip_address="192.168.0.20",  # omit (or leave as None) to run fully offline
+)
+
+seq_p_esr(ps, sequence_params, exp_t=20e-6, sweep_len=1)  # same sequence code as PulseBlaster/Keysight
+ps.save_patterns("pulse_streamer_p_esr.npz")
+```
+With no `ip_address` (or without the optional `pulsestreamer` package installed), the adapter runs offline: sequences still compile into `ps.digital_patterns`/`ps.analog_patterns` for inspection, plotting, or export. With an `ip_address` and the `pulsestreamer` package (`pip install -e "plugins[pulse_streamer]"`), `stop_programming()` also builds a native `pulsestreamer.Sequence`, and `start()` streams it to the device.
 
 Design notes
 - Times are in integer nanoseconds.
@@ -90,3 +140,15 @@ python examples/plot_p_esr_sequence.py
         ![Wrapped](examples/img/p_esr_step3_wrapped.png)
     - Instruction view (`convert_to_instructions()`), with `camera` held constant
         ![Instructions](examples/img/p_esr_step4_instructions.png)
+
+**Pulse Streamer 8/2 Example (digital + analog)**
+- Build a kernel mixing digital (laser/camera) and analog (MW I/Q) channels, and compile it with `PulseStreamerAdapter` in offline mode.
+- Generate figures with:
+```
+python examples/plot_pulse_streamer_sequence.py
+```
+- Resulting plots (saved under `examples/img/`):
+    - Kernel view — analog channels are drawn at a height proportional to their programmed level (-1 V to 1 V)
+        ![Kernel](examples/img/pulse_streamer_step1_kernel.png)
+    - Instruction view (`convert_to_instructions()`)
+        ![Instructions](examples/img/pulse_streamer_step2_instructions.png)

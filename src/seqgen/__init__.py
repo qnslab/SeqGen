@@ -10,6 +10,7 @@ Public API:
 """
 
 from .pulse_kernel import ChannelType, PulseKernel
+from .sequence_helpers import extend_sequence, make_segment, plot_sequences, prepend_idle, repeated_block, shift_first_segment
 
 # Note: device adapters live outside core `seqgen` (e.g., `plugins.pulseblaster`).
 # Avoid importing adapters here to prevent circular import during plugin usage.
