@@ -8,6 +8,7 @@ Description-Content-Type: text/markdown
 Requires-Dist: numpy
 Requires-Dist: matplotlib
 Requires-Dist: loguru
+Requires-Dist: pulsestreamer
 
 SeqGen
 ======

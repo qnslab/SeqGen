@@ -8,11 +8,8 @@ import numpy as np
 
 from seqgen.pulse_kernel import ChannelType
 
-try:
-    from pulsestreamer import OutputState, PulseStreamer
-except Exception:  # pragma: no cover - optional dependency
-    PulseStreamer = None
-    OutputState = None
+from pulsestreamer import OutputState, PulseStreamer
+
 
 logger = logging.getLogger(__name__)
 
@@ -41,14 +38,18 @@ class PulseStreamerAdapter:
     def __init__(
         self,
         ch_defs: dict[str, int],
-        ip_address: str | None = None,
+        address: str | None = None,
         ch_types: dict[str, "ChannelType | str"] | None = None,
         n_runs: int = 1,
+        device_id: str | None = None,
+        *args,
+        **kwargs
     ):
         # ch_defs maps channel name -> hardware channel index:
         #   digital channels: 0-7, analog channels: 0-1
         self.ch_defs = ch_defs or {}
-        self.ip_address = ip_address
+        self.ip_address = address
+        self.device_id = device_id
         self.n_runs = n_runs
         self.ch_types = {
             ch: ChannelType.coerce(ch_types[ch]) if ch_types and ch in ch_types else ChannelType.DIGITAL
@@ -65,6 +66,9 @@ class PulseStreamerAdapter:
         self.sequence = None
         self.digital_patterns: dict[str, list[tuple[int, int]]] = {}
         self.analog_patterns: dict[str, list[tuple[int, float]]] = {}
+
+    def connect(self):
+        self.open()
 
     def open(self) -> tuple[bool, str]:
         if self.ip_address is None:
@@ -85,6 +89,9 @@ class PulseStreamerAdapter:
             self._ps = None
             return False, "Error connecting to Pulse Streamer"
 
+    def disconnect(self):
+        self.close()
+
     def close(self):
         self.stop()
         self._ps = None
@@ -93,9 +100,12 @@ class PulseStreamerAdapter:
     def is_connected(self) -> bool:
         return self.connected
 
+    def start_sequence(self):
+        self.start()
+
     def start(self):
         if self._ps is not None and self.sequence is not None:
-            final_state = OutputState.ZERO() if OutputState is not None else None
+            final_state = OutputState.ZERO()
             self._ps.stream(self.sequence, self.n_runs, final_state)
         self.running = True
 
@@ -143,7 +153,7 @@ class PulseStreamerAdapter:
             "pulsed_odmr": PulsedODMRSequence,
         }
 
-    def load_seq(self, seq_name, **seq_kwargs):
+    def load_sequence(self, seq_name, **seq_kwargs):
         logger.info("Loading %s sequence", seq_name)
         sequences = self.get_available_sequences()
         sequence_spec = sequences[seq_name]
@@ -171,7 +181,8 @@ class PulseStreamerAdapter:
         self.sequence = self.build_sequence()
 
     def end_sequence(self, dur):
-        self.add_instruction([], dur=dur)
+        # do nothing
+        return
 
     def build_sequence(self):
         """Compile the materialized instruction program into digital/analog

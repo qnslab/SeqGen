@@ -38,7 +38,6 @@ class RabiSequence(PulseStreamerSequence):
 
         # get the total duration of the sequence to determine how long the camera should be on
         camera_time = self.get_total_block_duration(mw_x_sequence)
-        print(f"Camera signal time: {camera_time} ns")
 
         camera_sequence = self.repeated_block(
             (camera_time, camera_state),
@@ -68,8 +67,6 @@ class RabiSequence(PulseStreamerSequence):
 
         # get the total duration of the sequence to determine how long the camera should be on
         camera_time = self.get_total_block_duration(mw_x_sequence)
-
-        print(f"Camera reference time: {camera_time} ns")
         camera_sequence = self.repeated_block(
             (camera_time, camera_state),
             repeats=1,
