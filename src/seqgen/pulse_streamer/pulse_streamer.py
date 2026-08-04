@@ -14,10 +14,7 @@ except Exception:  # pragma: no cover - optional dependency
     PulseStreamer = None
     OutputState = None
 
-try:
-    from loguru import logger
-except Exception:  # pragma: no cover - optional dependency
-    logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class PulseStreamerAdapter:
@@ -40,12 +37,10 @@ class PulseStreamerAdapter:
 
     connected: bool = False
     ch_defs: dict[str, int]
-    sequence_params: dict[str, float]
 
     def __init__(
         self,
         ch_defs: dict[str, int],
-        sequence_params: dict[str, float] | None = None,
         ip_address: str | None = None,
         ch_types: dict[str, "ChannelType | str"] | None = None,
         n_runs: int = 1,
@@ -53,7 +48,6 @@ class PulseStreamerAdapter:
         # ch_defs maps channel name -> hardware channel index:
         #   digital channels: 0-7, analog channels: 0-1
         self.ch_defs = ch_defs or {}
-        self.sequence_params = sequence_params or {}
         self.ip_address = ip_address
         self.n_runs = n_runs
         self.ch_types = {
@@ -67,6 +61,7 @@ class PulseStreamerAdapter:
         self._ps = None
         self._program: list[dict[str, Any]] = []
         self._loop_stack: list[dict[str, Any]] = []
+        self.loaded_sequence = None
         self.sequence = None
         self.digital_patterns: dict[str, list[tuple[int, int]]] = {}
         self.analog_patterns: dict[str, list[tuple[int, float]]] = {}
@@ -82,7 +77,7 @@ class PulseStreamerAdapter:
         try:
             self._ps = PulseStreamer(self.ip_address)
             self.connected = True
-            logger.info("Connected to Pulse Streamer at {}", self.ip_address)
+            logger.info("Connected to Pulse Streamer at %s", self.ip_address)
             return True, f"Connected to Pulse Streamer at {self.ip_address}"
         except Exception:
             logger.exception("Error connecting to Pulse Streamer")
@@ -107,6 +102,7 @@ class PulseStreamerAdapter:
     def reset(self):
         self._program = []
         self._loop_stack = []
+        self.loaded_sequence = None
         self.sequence = None
         self.digital_patterns = {}
         self.analog_patterns = {}
@@ -137,110 +133,42 @@ class PulseStreamerAdapter:
         }
 
     def get_available_sequences(self):
-        from ..pulseblaster.camera_sequences.cw_esr import seq_cw_esr
-        from ..pulseblaster.camera_sequences.p_esr import seq_p_esr
-        from ..pulseblaster.camera_sequences.rabi import seq_rabi
-        from ..pulseblaster.camera_sequences.ramsey import seq_ramsey
-        from ..pulseblaster.camera_sequences.spin_echo import seq_spin_echo
-        from ..pulseblaster.camera_sequences.t1 import seq_t1
+        from seqgen.pulse_streamer.sequences.rabi import RabiSequence
+        from seqgen.pulse_streamer.sequences.cw_odmr import ODMRSequence
+        from seqgen.pulse_streamer.sequences.pulsed_odmr import PulsedODMRSequence
 
         return {
-            "MockSGAndorCWESR": seq_cw_esr,
-            "SGAndorCWESR": seq_cw_esr,
-            "SGAndorPESR": seq_p_esr,
-            "SGAndorRabi": seq_rabi,
-            "SGAndorT1": seq_t1,
-            "SGAndorRamsey": seq_ramsey,
-            "SGAndorSpinEcho": seq_spin_echo,
+            "rabi": RabiSequence,
+            "cw_odmr": ODMRSequence,
+            "pulsed_odmr": PulsedODMRSequence,
         }
 
     def load_seq(self, seq_name, **seq_kwargs):
-        logger.info("Loading {} sequence", seq_name)
+        logger.info("Loading %s sequence", seq_name)
         sequences = self.get_available_sequences()
-        sequences[seq_name](self, self.sequence_params, **seq_kwargs)
-        logger.info("Loaded {} sequence", seq_name)
+        sequence_spec = sequences[seq_name]
+        if isinstance(sequence_spec, type):
+            loaded_sequence = sequence_spec(self)
+            result = loaded_sequence.load(**seq_kwargs)
+            self.loaded_sequence = loaded_sequence
+        else:
+            self.loaded_sequence = None
+            result = sequence_spec(self, **seq_kwargs)
+        logger.info("Loaded %s sequence", seq_name)
+        return result
+
+    def get_loaded_sequence_info(self):
+        if self.loaded_sequence is None:
+            return {}
+        if hasattr(self.loaded_sequence, "describe"):
+            return self.loaded_sequence.describe()
+        return {}
 
     def start_programming(self):
         self.reset()
 
     def stop_programming(self):
         self.sequence = self.build_sequence()
-
-    def _normalize_instruction(
-        self,
-        active_chs,
-        dur=0,
-        delay=None,
-        loop=None,
-        num=0,
-        inst=None,
-        const_chs=(),
-        levels=None,
-        **kwargs,
-    ):
-        return {
-            "active_chs": list(active_chs) if active_chs else [],
-            "dur": max(0, int(round(dur))),
-            "const_chs": list(const_chs) if const_chs else [],
-            "levels": dict(levels) if levels else {},
-            "loop": loop,
-            "num": int(num) if isinstance(num, (int, float)) else num,
-            "loop_anchor": inst,
-        }
-
-    def add_instruction(
-        self,
-        active_chs,
-        dur=0,
-        delay=None,
-        loop=None,
-        num=0,
-        inst=None,
-        const_chs=(),
-        levels=None,
-        **kwargs,
-    ):
-        instruction = self._normalize_instruction(
-            active_chs,
-            dur=dur,
-            delay=delay,
-            loop=loop,
-            num=num,
-            inst=inst,
-            const_chs=const_chs,
-            levels=levels,
-            **kwargs,
-        )
-
-        if loop == "start":
-            self._loop_stack.append({"num": max(1, int(instruction["num"] or 1)), "buffer": []})
-            return len(self._program)
-
-        if loop == "end":
-            if not self._loop_stack:
-                logger.warning("Encountered loop end without a matching loop start")
-                self._program.append(instruction)
-                return len(self._program) - 1
-
-            frame = self._loop_stack.pop()
-            repeated = frame["buffer"] * frame["num"]
-            if self._loop_stack:
-                self._loop_stack[-1]["buffer"].extend(repeated)
-            else:
-                self._program.extend(repeated)
-            return len(self._program) - 1 if self._program else None
-
-        target = self._loop_stack[-1]["buffer"] if self._loop_stack else self._program
-        target.append(instruction)
-        return len(target) - 1
-
-    def add_kernel(self, pulse_kernel, num_loop, const_chs=None, **kwargs):
-        if const_chs is None:
-            const_chs = []
-        pulse_kernel.convert_to_instructions(const_chs=const_chs)
-        for _ in range(int(num_loop)):
-            for inst in pulse_kernel.insts:
-                self.add_instruction(**inst)
 
     def end_sequence(self, dur):
         self.add_instruction([], dur=dur)
@@ -258,16 +186,22 @@ class PulseStreamerAdapter:
         digital_patterns: dict[str, list[tuple[int, int]]] = {ch: [] for ch in digital_chs}
         analog_patterns: dict[str, list[tuple[int, float]]] = {ch: [] for ch in analog_chs}
 
-        for instruction in self._program:
-            dur = instruction["dur"]
-            if dur <= 0:
-                continue
-            active = set(instruction["active_chs"]) | set(instruction["const_chs"])
-            levels = instruction.get("levels", {})
+        if self._program:
+            for instruction in self._program:
+                dur = instruction["dur"]
+                if dur <= 0:
+                    continue
+                active = set(instruction["active_chs"]) | set(instruction["const_chs"])
+                levels = instruction.get("levels", {})
+                for ch in digital_chs:
+                    digital_patterns[ch].append((dur, 1 if ch in active else 0))
+                for ch in analog_chs:
+                    analog_patterns[ch].append((dur, float(levels.get(ch, 0.0))))
+        else:
             for ch in digital_chs:
-                digital_patterns[ch].append((dur, 1 if ch in active else 0))
+                digital_patterns[ch] = list(self.digital_patterns.get(ch, []))
             for ch in analog_chs:
-                analog_patterns[ch].append((dur, float(levels.get(ch, 0.0))))
+                analog_patterns[ch] = list(self.analog_patterns.get(ch, []))
 
         self.digital_patterns = digital_patterns
         self.analog_patterns = analog_patterns
