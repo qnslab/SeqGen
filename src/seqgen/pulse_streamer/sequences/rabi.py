@@ -81,8 +81,10 @@ class RabiSequence(PulseStreamerSequence):
         laser_initialization_time: float | None = None,
         rf_delay: float = 0,
         ref_mode: str = "no_rf",
-        camera_on_time: float = 1e-3,
-        camera_readout_time: float = 0.1e-3,
+        exposure_time: float = 0,
+        camera_on_time: float = 0,
+        camera_readout_time: float = 0,
+        camera_trig_time: float = 0,
         **kwargs,
     ):
         if sweep_x is None:
@@ -90,6 +92,13 @@ class RabiSequence(PulseStreamerSequence):
 
         if laser_initialization_time in (None, 0):
             laser_initialization_time = 3 * laser_dur
+
+        if camera_readout_time is 0:
+            camera_readout_time = camera_on_time
+
+        if camera_on_time is 0:
+            camera_on_time = exposure_time
+        
 
         if ref_mode == ("" or None):
             logger.info("Setting up Rabi sequence with no reference")

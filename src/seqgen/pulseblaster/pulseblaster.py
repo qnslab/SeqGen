@@ -16,17 +16,25 @@ except Exception as e:
     pb = None
 
 
-class PulseBlaster:
+class PulseBlasterAdapter:
     connected: bool = False
     board_num: str
     ch_defs: dict[str, str]
     sequence_params: dict[str, float]
 
-    def __init__(self, board_num: str, ch_defs: dict[str, str], sequence_params: dict[str, float]):
+    def __init__(self, board_num: int = 0, ch_defs: dict[str, str] = None, sequence_params: dict[str, float] = None, device_id: str | None = None, *args, **kwargs):
+        ch_defs = ch_defs or {}
+        sequence_params = sequence_params or {}
         self.board_num = board_num
         self.ch_defs = ch_defs
         self.sequence_params = sequence_params
         self.shortest_dur = int(12)
+        self.device_id = device_id
+        self.loaded_sequence = None
+
+    def connect(self):
+        # for interacting with labdaemon
+        self.open()
 
     def open(self) -> tuple[bool, str]:
         if pb is None:
@@ -58,16 +66,22 @@ class PulseBlaster:
         except:
             return False
 
+    def start_sequence(self):
+        self.start()
+
     def start(self):
         if pb is not None:
+            logger.info("Starting Pulseblaster sequence")
             pb.pb_start()
 
     def reset(self):
         if pb is not None:
+            logger.info("Resetting Pulseblaster sequence")
             pb.pb_reset()
 
     def stop(self):
         if pb is not None:
+            logger.info("Stopping Pulseblaster sequence")
             pb.pb_stop()
 
     def is_finished(self):
@@ -77,27 +91,43 @@ class PulseBlaster:
         return pb.pb_read_status() if pb is not None else {}
 
     def get_available_sequences(self):
-        from camera_sequences.cw_esr import seq_cw_esr
-        from camera_sequences.p_esr import seq_p_esr
-        from camera_sequences.rabi import seq_rabi
-        from camera_sequences.ramsey import seq_ramsey
-        from camera_sequences.spin_echo import seq_spin_echo
-        from camera_sequences.t1 import seq_t1
+        from seqgen.pulseblaster.sequences.cw_esr import ODMRSequence
+        from seqgen.pulseblaster.sequences.p_esr import seq_p_esr
+        from seqgen.pulseblaster.sequences.rabi import seq_rabi
+        from seqgen.pulseblaster.sequences.ramsey import seq_ramsey
+        from seqgen.pulseblaster.sequences.spin_echo import seq_spin_echo
+        from seqgen.pulseblaster.sequences.t1 import seq_t1
+        
         return {
-            "MockSGAndorCWESR": seq_cw_esr,
-            "SGAndorCWESR": seq_cw_esr,
-            "SGAndorPESR": seq_p_esr,
-            "SGAndorRabi": seq_rabi,
-            "SGAndorT1": seq_t1,
-            "SGAndorRamsey": seq_ramsey,
-            "SGAndorSpinEcho": seq_spin_echo,
+            "mock_odmr": ODMRSequence,
+            "cw_odmr": ODMRSequence,
+            "pulsed_odmr": seq_p_esr,
+            "rabi": seq_rabi,
+            "t1": seq_t1,
+            "ramsey": seq_ramsey,
+            "spin_echo": seq_spin_echo,
         }
 
-    def load_seq(self, seq_name, **seq_kwargs):
+    def load_sequence(self, seq_name, **seq_kwargs):
         logger.info("Loading {} sequence", seq_name)
         sequences = self.get_available_sequences()
-        sequences[seq_name](self, self.sequence_params, **seq_kwargs)
+        sequence_spec = sequences[seq_name]
+        if isinstance(sequence_spec, type):
+            loaded_sequence = sequence_spec(self, self.sequence_params)
+            result = loaded_sequence.load(**seq_kwargs)
+            self.loaded_sequence = loaded_sequence
+        else:
+            self.loaded_sequence = None
+            result = sequence_spec(self, self.sequence_params, **seq_kwargs)
         logger.info("Loaded {} sequence", seq_name)
+        return result
+
+    def get_loaded_sequence_info(self):
+        if self.loaded_sequence is None:
+            return {}
+        if hasattr(self.loaded_sequence, "describe"):
+            return self.loaded_sequence.describe()
+        return {}
 
     def start_programming(self):
         if pb is not None:

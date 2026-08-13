@@ -68,6 +68,7 @@ class PulseStreamerAdapter:
         self.analog_patterns: dict[str, list[tuple[int, float]]] = {}
 
     def connect(self):
+        # for interacting with labdaemon
         self.open()
 
     def open(self) -> tuple[bool, str]:

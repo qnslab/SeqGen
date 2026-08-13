@@ -8,3 +8,5 @@ Imports are intentionally light to avoid heavy dependencies during partial impor
 """
 
 __all__ = ["pulseblaster", "camera_sequences"]
+
+from .pulseblaster import PulseBlasterAdapter
