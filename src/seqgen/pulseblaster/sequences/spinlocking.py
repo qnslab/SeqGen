@@ -19,21 +19,21 @@ if typing.TYPE_CHECKING:
 
 
 
-class RamseySequence(PulseBlasterSequence):
-    """PulseBlaster Ramsey sequence builder.
+class SpinlockSequence(PulseBlasterSequence):
+    """PulseBlaster Spinlock sequence builder.
     """
 
 
-    sequence_name = "Ramsey"
-    ch_names = ["laser", "rf_x", "rf_-x", "camera", "rf_trig"]
+    sequence_name = "Spinlock"
+    ch_names = ["laser", "rf_x", "rf_-x", "rf_y", "camera", "rf_trig"]
 
     def log_sequence_info(self,
                           sweep_x: list[int],
                           laser_dur: int,
                           laser_delay: int,
                           rf_delay: int,
-                          laser_to_rf_delay: int,
                           pi_2_dur: int,
+                          laser_to_rf_delay: int,
                           ref_mode: str,
                           base_time: int,
                           exposure_time: float,
@@ -43,8 +43,8 @@ class RamseySequence(PulseBlasterSequence):
                           ):
 
         logger.info(
-        "Programming Ramsey sequence with the following parameters:"
-        + f"\nTime start: {sweep_x[0]} ns"
+        "Programming Spinlock sequence with the following parameters:" +
+        f"\nTime start: {sweep_x[0]} ns"
         + f"\nTime stop: {sweep_x[-1]} ns"
         + f"\nTime num: {len(sweep_x)}"
         + f"\nLaser duration: {laser_dur} ns"
@@ -79,10 +79,10 @@ class RamseySequence(PulseBlasterSequence):
 
         if ref_mode == ("" or None):
             b_ref = False
-            logger.info("Setting up Ramsey sequence with no reference")
+            logger.info("Setting up Spinlock sequence with no reference")
         else:
             b_ref = True
-            logger.info("Setting up Ramsey sequence with {} as a reference", ref_mode)
+            logger.info("Setting up Spinlock sequence with {} as a reference", ref_mode)
 
 
         # convert times to ns assuming the user inputs in s
@@ -95,7 +95,7 @@ class RamseySequence(PulseBlasterSequence):
         camera_trig_time = int(np.ceil(camera_trig_time * 1e9))
 
         # time_list = np.linspace(time_start, time_stop, time_num)
-        time_list = np.ceil(1e9 * sweep_x)
+        time_list = 1e9 * sweep_x
         # Make the time list a list of integers
         time_list = [int(i) for i in time_list.tolist()]
 
@@ -106,7 +106,7 @@ class RamseySequence(PulseBlasterSequence):
         pk_sig.add_pulse(["laser"], 0, laser_dur, ch_delay=laser_delay)
         pk_sig.append_delay(laser_to_rf_delay)
         pk_sig.append_pulse(["rf_x"], pi_2_dur, ch_delay=rf_delay)
-        pk_sig.append_delay(2, var_dur=True)
+        pk_sig.append_pulse(["rf_y"], 1, var_dur=True)
         pk_sig.append_pulse(["rf_x"], pi_2_dur, ch_delay=rf_delay)
         pk_sig.finish_kernel()
 
@@ -117,22 +117,23 @@ class RamseySequence(PulseBlasterSequence):
         pk_ref.add_pulse(["laser"], 0, laser_dur, ch_delay=laser_delay)
         pk_ref.append_delay(laser_to_rf_delay)
         pk_ref.append_pulse(["rf_x"], pi_2_dur, ch_delay=rf_delay)
-        pk_ref.append_delay(2, var_dur=True)
+        pk_ref.append_pulse(["rf_y"], 1, var_dur=True)
 
         if ref_mode == "-π/2 at end":
             pk_ref.append_pulse(["rf_-x"], pi_2_dur, ch_delay=rf_delay)
         elif ref_mode == "3π/2 at end":
             pk_ref.append_pulse(["rf_x"], 3 * pi_2_dur, ch_delay=rf_delay)
         else:
-            pk_ref.append_pulse(["rf_-x"], pi_2_dur, ch_delay=rf_delay)
+            pk_ref.append_pulse(["rf_x"], 3 *pi_2_dur, ch_delay=rf_delay)
         pk_ref.finish_kernel()
 
         # Get the base kernel time
-        base_time = pk_sig.get_end_time() - 12
+        base_time = pk_sig.get_end_time() - 1
 
         # Get the number of cycles for the inner loops
-        trigger_loops = int(camera_trig_time / base_time) + 1
         num_loops = int(exposure_time / base_time) + 1
+        trigger_loops = int(camera_trig_time / base_time) + 1
+        
 
         self.log_sequence_info(
             sweep_x=time_list,
@@ -153,7 +154,7 @@ class RamseySequence(PulseBlasterSequence):
         # Start the programming of the pulseblaster
         seqgen.start_programming()
         # Initial laser pulse
-        seqgen.add_instruction(**{"active_chs": ["laser"], "dur": exposure_time})
+        seqgen.add_instruction(**{"active_chs": ["laser"], "dur": 2*exposure_time})
 
         for tau in time_list:
             if avg_per_point > 1:
@@ -163,7 +164,6 @@ class RamseySequence(PulseBlasterSequence):
                 )
 
             pk_sig.update_var_durs(tau)
-
             # Add the SIG kernel to the sequence generator
             seqgen.add_kernel(pk_sig, num_loops, const_chs=["camera"])
             seqgen.add_kernel(pk_sig, trigger_loops, const_chs=[])
@@ -172,7 +172,6 @@ class RamseySequence(PulseBlasterSequence):
             if b_ref:
                 # update the time in the kernel
                 pk_ref.update_var_durs(tau)
-
                 # Add the REF kernel to the sequence generator
                 seqgen.add_kernel(pk_ref, num_loops, const_chs=["camera"])
                 seqgen.add_kernel(pk_ref, trigger_loops, const_chs=[])
@@ -180,10 +179,10 @@ class RamseySequence(PulseBlasterSequence):
                 if avg_per_point > 1:
                     seqgen.add_instruction([], 12, loop="end", inst=inst)
 
-        # seqgen.add_instruction([], trigger_time)
+        seqgen.add_instruction([], camera_trig_time)
 
         # Turn the laser off and end sequence
-        seqgen.end_sequence(10e6)
+        seqgen.end_sequence(1e6)
 
         # End of pulse program
         seqgen.stop_programming()

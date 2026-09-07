@@ -25,7 +25,7 @@ class ODMRSequence(PulseBlasterSequence):
     """
 
     sequence_name = "CW ODMR"
-    ch_names = ["laser", "mw_x", "camera", "mw_trig"]
+    ch_names = ["laser", "rf_x", "camera", "rf_trig"]
 
     def log_sequence_info(self, camera_on_time_ns: int, camera_readout_time_ns: int, ref_mode: str, f_pts: int):
         logger.info(f"Loaded {self.sequence_name} sequence \n"
@@ -73,27 +73,27 @@ class ODMRSequence(PulseBlasterSequence):
         # ------- SIGNAL -------
         pk_sig = PulseKernel(seqgen.ch_defs)
         # Program the kernel pulses
-        pk_sig.add_pulse(["laser", "mw_x"], 0, exposure_time)
+        pk_sig.add_pulse(["laser", "rf_x"], 0, exposure_time)
 
         # ------- Trigger -------
         pk_sig_trig = PulseKernel(seqgen.ch_defs)
-        pk_sig_trig.add_pulse(["laser", "mw_x"], 0, trigger_time)
+        pk_sig_trig.add_pulse(["laser", "rf_x"], 0, trigger_time)
 
         # ------- REFERENCE -------
         pk_ref = PulseKernel(seqgen.ch_defs)
         if ref_mode == "no_rf":
             pk_ref.append_pulse(["laser"], exposure_time)
         elif ref_mode == "no_laser":
-            pk_ref.append_pulse(["mw_x"], exposure_time)
+            pk_ref.append_pulse(["rf_x"], exposure_time)
 
         # ------- Trigger -------
         pk_ref_trig = PulseKernel(seqgen.ch_defs)
         if ref_mode == "no_rf":
             pk_ref_trig.append_pulse(["laser"], trigger_time)
         elif ref_mode == "no_laser":
-            pk_ref_trig.append_pulse(["mw_x"], trigger_time)
+            pk_ref_trig.append_pulse(["rf_x"], trigger_time)
         elif ref_mode == "f_mod":
-            pk_ref_trig.append_pulse(["laser", "mw_x"], trigger_time)
+            pk_ref_trig.append_pulse(["laser", "rf_x"], trigger_time)
 
         # Start the programming of the pulseblaster
         seqgen.start_programming()
@@ -110,18 +110,18 @@ class ODMRSequence(PulseBlasterSequence):
             seqgen.add_kernel(pk_sig, 1, const_chs=["camera"])
             if ref_mode == "f_mod":
                 # trigger the signal generator to go to the next freq
-                seqgen.add_kernel(pk_sig, 1, const_chs=["mw_trig"])
+                seqgen.add_kernel(pk_sig, 1, const_chs=["rf_trig"])
             else:
                 seqgen.add_kernel(pk_sig, 1)
 
             if b_ref:
                 seqgen.add_kernel(pk_ref, 1, const_chs=["camera"])
-                seqgen.add_kernel(pk_ref_trig, 1, const_chs=["mw_trig"])
+                seqgen.add_kernel(pk_ref_trig, 1, const_chs=["rf_trig"])
 
             if avg_per_point > 1:
                 seqgen.add_instruction([], 12, loop="end", inst=inst)
 
-            seqgen.add_instruction([], dur=trigger_time)
+            # seqgen.add_instruction([], dur=trigger_time)
 
         # Turn the laser off and end sequence
         seqgen.end_sequence(10e6)

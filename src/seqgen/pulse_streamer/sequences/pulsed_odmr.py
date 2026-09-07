@@ -13,7 +13,7 @@ class PulsedODMRSequence(PulseStreamerSequence):
     """Pulse Streamer Pulsed ODMR sequence builder."""
 
     sequence_name = "PulsedODMR"
-    ch_names = ["laser", "mw_x", "camera"]
+    ch_names = ["laser", "rf_x", "camera"]
 
     def signal_sequence(
         self,
@@ -30,21 +30,21 @@ class PulsedODMRSequence(PulseStreamerSequence):
             repeats=repeats,
         )
 
-        mw_x_sequence = self.repeated_block(
+        rf_x_sequence = self.repeated_block(
             (laser_dur + rf_delay, LOW),
             (rf_dur, HIGH),
             repeats=repeats,
         )
 
         # get the total duration of the sequence to determine how long the camera should be on
-        camera_time = self.get_total_block_duration(mw_x_sequence)
+        camera_time = self.get_total_block_duration(rf_x_sequence)
         print(f"Camera signal time: {camera_time} ns")
 
         camera_sequence = self.repeated_block(
             (camera_time, camera_state),
             repeats=1,
         )
-        return laser_sequence, mw_x_sequence, camera_sequence
+        return laser_sequence, rf_x_sequence, camera_sequence
 
     def reference_sequence(
         self,
@@ -61,20 +61,20 @@ class PulsedODMRSequence(PulseStreamerSequence):
             repeats=repeats,
         )
 
-        mw_x_sequence = self.repeated_block(
+        rf_x_sequence = self.repeated_block(
             (laser_dur + rf_delay + rf_dur, LOW),
             repeats=repeats,
         )
 
         # get the total duration of the sequence to determine how long the camera should be on
-        camera_time = self.get_total_block_duration(mw_x_sequence)
+        camera_time = self.get_total_block_duration(rf_x_sequence)
 
         print(f"Camera reference time: {camera_time} ns")
         camera_sequence = self.repeated_block(
             (camera_time, camera_state),
             repeats=1,
         )
-        return laser_sequence, mw_x_sequence, camera_sequence
+        return laser_sequence, rf_x_sequence, camera_sequence
 
     def load(
         self,
@@ -113,11 +113,11 @@ class PulsedODMRSequence(PulseStreamerSequence):
         b_ref = ref_mode not in ("", None)
 
         seq_laser   = [(laser_initialization_time_ns, HIGH)]
-        seq_mw_x    = [(laser_initialization_time_ns, LOW)]
+        seq_rf_x    = [(laser_initialization_time_ns, LOW)]
         seq_camera  = [(laser_initialization_time_ns, LOW)]
 
         for _ in range(number_pts):
-            sig_laser, sig_mw_x, sig_camera = self.signal_sequence(
+            sig_laser, sig_rf_x, sig_camera = self.signal_sequence(
                 rf_dur_ns,
                 n_repetitions,
                 laser_dur_ns,
@@ -125,10 +125,10 @@ class PulsedODMRSequence(PulseStreamerSequence):
                 camera_state=HIGH,
             )
             seq_laser += sig_laser
-            seq_mw_x += sig_mw_x
+            seq_rf_x += sig_rf_x
             seq_camera += sig_camera
 
-            sig_laser_readout, sig_mw_x_readout, sig_camera_readout = self.signal_sequence(
+            sig_laser_readout, sig_rf_x_readout, sig_camera_readout = self.signal_sequence(
                 rf_dur_ns,
                 n_repetitions_readout,
                 laser_dur_ns,
@@ -136,10 +136,10 @@ class PulsedODMRSequence(PulseStreamerSequence):
                 camera_state=LOW,
             )
             seq_laser += sig_laser_readout
-            seq_mw_x += sig_mw_x_readout
+            seq_rf_x += sig_rf_x_readout
             seq_camera += sig_camera_readout
 
-            ref_laser, ref_mw_x, ref_camera = self.reference_sequence(
+            ref_laser, ref_rf_x, ref_camera = self.reference_sequence(
                 rf_dur_ns,
                 n_repetitions,
                 laser_dur_ns,
@@ -147,10 +147,10 @@ class PulsedODMRSequence(PulseStreamerSequence):
                 camera_state=HIGH,
             )
             seq_laser += ref_laser
-            seq_mw_x += ref_mw_x
+            seq_rf_x += ref_rf_x
             seq_camera += ref_camera
 
-            ref_laser_readout, ref_mw_x_readout, ref_camera_readout = self.reference_sequence(
+            ref_laser_readout, ref_rf_x_readout, ref_camera_readout = self.reference_sequence(
                 rf_dur_ns,
                 n_repetitions_readout,
                 laser_dur_ns,
@@ -159,7 +159,7 @@ class PulsedODMRSequence(PulseStreamerSequence):
             )
 
             seq_laser += ref_laser_readout
-            seq_mw_x += ref_mw_x_readout
+            seq_rf_x += ref_rf_x_readout
             seq_camera += ref_camera_readout
 
         self._shift_first_segment(seq_laser, laser_delay_ns)
@@ -168,7 +168,7 @@ class PulsedODMRSequence(PulseStreamerSequence):
 
         self.set_channel_sequences({
             "laser": seq_laser,
-            "mw_x": seq_mw_x,
+            "rf_x": seq_rf_x,
             "camera": seq_camera,
         })
         self.seqgen.stop_programming()

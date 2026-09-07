@@ -13,25 +13,25 @@ class ODMRSequence(PulseStreamerSequence):
     """Pulse Streamer ODMR sequence builder."""
 
     sequence_name = "CW ODMR"
-    ch_names = ["laser", "mw_x", "camera", "mw_trig"]
+    ch_names = ["laser", "rf_x", "camera", "rf_trig"]
 
     laser_sequence: list[tuple[int, int]] = []
-    mw_x_sequence: list[tuple[int, int]] = []
+    rf_x_sequence: list[tuple[int, int]] = []
     camera_sequence: list[tuple[int, int]] = []
-    mw_trig_sequence: list[tuple[int, int]] = []
+    rf_trig_sequence: list[tuple[int, int]] = []
 
     def signal_sequence(
         self,
         camera_dur: int,
         camera_state: int = HIGH,
-        mw_trig_state: int = LOW,
+        rf_trig_state: int = LOW,
     ) -> tuple[list[tuple[int, int]], list[tuple[int, int]], list[tuple[int, int]], list[tuple[int, int]]]:
         
         laser_sequence = self.repeated_block(
             (camera_dur, HIGH),
             repeats=1,
         )
-        mw_x_sequence = self.repeated_block(
+        rf_x_sequence = self.repeated_block(
             (camera_dur, HIGH),
             repeats=1,
         )
@@ -39,24 +39,24 @@ class ODMRSequence(PulseStreamerSequence):
             (camera_dur, camera_state),
             repeats=1,
         )
-        mw_trig_sequence = self.repeated_block(
-            (camera_dur, mw_trig_state),
+        rf_trig_sequence = self.repeated_block(
+            (camera_dur, rf_trig_state),
             repeats=1,
         )
-        return laser_sequence, mw_x_sequence, camera_sequence, mw_trig_sequence
+        return laser_sequence, rf_x_sequence, camera_sequence, rf_trig_sequence
 
     def reference_sequence(
         self,
         camera_dur: int,
         camera_state: int = HIGH,
-        mw_trig_state: int = LOW,
+        rf_trig_state: int = LOW,
     ) -> tuple[list[tuple[int, int]], list[tuple[int, int]], list[tuple[int, int]], list[tuple[int, int]]]:
 
         laser_sequence = self.repeated_block(
             (camera_dur, HIGH),
             repeats=1,
         )
-        mw_x_sequence = self.repeated_block(
+        rf_x_sequence = self.repeated_block(
             (camera_dur, LOW),
             repeats=1,
         )
@@ -64,11 +64,11 @@ class ODMRSequence(PulseStreamerSequence):
             (camera_dur, camera_state),
             repeats=1,
         )
-        mw_trig_sequence = self.repeated_block(
-            (camera_dur, mw_trig_state),
+        rf_trig_sequence = self.repeated_block(
+            (camera_dur, rf_trig_state),
             repeats=1,
         )
-        return laser_sequence, mw_x_sequence, camera_sequence, mw_trig_sequence
+        return laser_sequence, rf_x_sequence, camera_sequence, rf_trig_sequence
 
     def log_sequence_info(self, camera_on_time_ns: int, camera_readout_time_ns: int, ref_mode: str, f_pts: int):
         logger.info(f"Loaded {self.sequence_name} sequence \n"
@@ -103,70 +103,70 @@ class ODMRSequence(PulseStreamerSequence):
         self.log_sequence_info(camera_on_time_ns, camera_readout_time_ns, ref_mode, sweep_length)
 
         seq_laser: list[tuple[int, int]]  = [(0, HIGH)]
-        seq_mw_x: list[tuple[int, int]]   = [(0, LOW)]
+        seq_rf_x: list[tuple[int, int]]   = [(0, LOW)]
         seq_camera: list[tuple[int, int]] = [(0, LOW)]
-        seq_mw_trig: list[tuple[int, int]] = [(0, LOW)]
+        seq_rf_trig: list[tuple[int, int]] = [(0, LOW)]
 
         # trigger the segnal generator to start the sequence
         seq_laser += [(camera_trig_time, HIGH)]
-        seq_mw_x += [(camera_trig_time, LOW)]
+        seq_rf_x += [(camera_trig_time, LOW)]
         seq_camera += [(camera_trig_time, LOW)]
-        seq_mw_trig += [(camera_trig_time, HIGH)]
+        seq_rf_trig += [(camera_trig_time, HIGH)]
 
         # program an initalisation pulse for laser stability
         seq_laser += [(camera_on_time_ns, HIGH)]
-        seq_mw_x += [(camera_on_time_ns, LOW)]
+        seq_rf_x += [(camera_on_time_ns, LOW)]
         seq_camera += [(camera_on_time_ns, LOW)]    
-        seq_mw_trig += [(camera_on_time_ns, LOW)]
+        seq_rf_trig += [(camera_on_time_ns, LOW)]
 
 
         for _ in range(sweep_length):
-            sig_laser, sig_mw_x, sig_camera, sig_mw_trig = self.signal_sequence(
+            sig_laser, sig_rf_x, sig_camera, sig_rf_trig = self.signal_sequence(
                 camera_on_time_ns,
                 camera_state=HIGH,
             )
             seq_laser += sig_laser
-            seq_mw_x += sig_mw_x
+            seq_rf_x += sig_rf_x
             seq_camera += sig_camera
-            seq_mw_trig += sig_mw_trig
+            seq_rf_trig += sig_rf_trig
 
-            sig_laser_readout, sig_mw_x_readout, sig_camera_readout, sig_mw_trig_readout = self.signal_sequence(
+            sig_laser_readout, sig_rf_x_readout, sig_camera_readout, sig_rf_trig_readout = self.signal_sequence(
                 camera_readout_time_ns,
                 camera_state=LOW,
             )
             seq_laser += sig_laser_readout
-            seq_mw_x += sig_mw_x_readout
+            seq_rf_x += sig_rf_x_readout
             seq_camera += sig_camera_readout
-            seq_mw_trig += sig_mw_trig_readout
+            seq_rf_trig += sig_rf_trig_readout
 
-            ref_laser, ref_mw_x, ref_camera, ref_mw_trig = self.reference_sequence(
+            ref_laser, ref_rf_x, ref_camera, ref_rf_trig = self.reference_sequence(
                 camera_on_time_ns,
                 camera_state=HIGH,
             )
             seq_laser += ref_laser
-            seq_mw_x += ref_mw_x
+            seq_rf_x += ref_rf_x
             seq_camera += ref_camera
-            seq_mw_trig += ref_mw_trig
+            seq_rf_trig += ref_rf_trig
 
-            ref_laser_readout, ref_mw_x_readout, ref_camera_readout, ref_mw_trig_readout = self.reference_sequence(
+            ref_laser_readout, ref_rf_x_readout, ref_camera_readout, ref_rf_trig_readout = self.reference_sequence(
                 camera_readout_time_ns,
                 camera_state=LOW,
-                mw_trig_state=HIGH,
+                rf_trig_state=HIGH,
             )
 
             seq_laser += ref_laser_readout
-            seq_mw_x += ref_mw_x_readout
+            seq_rf_x += ref_rf_x_readout
             seq_camera += ref_camera_readout
-            seq_mw_trig += ref_mw_trig_readout
+            seq_rf_trig += ref_rf_trig_readout
 
 
         self.seqgen.start_programming()
 
         self.set_channel_sequences({
             "laser": seq_laser,
-            "mw_x": seq_mw_x,
+            "rf_x": seq_rf_x,
             "camera": seq_camera,
-            "mw_trig": seq_mw_trig,
+            "rf_trig": seq_rf_trig,
         })
         self.seqgen.stop_programming()
 
