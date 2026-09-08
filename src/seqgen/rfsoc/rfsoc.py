@@ -14,9 +14,9 @@ from RFBuilder import *
 
 
 # Define the TTL lines used for controlling the MicroBlaster and other functions
-RUN = "SOFTWARE0"
+RUN     = "SOFTWARE0"
 TRIGGER = "SOFTWARE1"
-RSTN = "SOFTWARE2"
+RSTN    = "SOFTWARE2"
 MB_OUT0 = "SYZYGY_OUT7"
 MB_OUT1 = "SYZYGY_OUT6"
 MB_OUT2 = "SYZYGY_OUT5"
@@ -57,57 +57,88 @@ class RFSOCAdapter:
         try:
             self.board = RFSOC4x2()
 
-            rfbuilder = RFBuilder(self.board,self.address,8080)
+            self.rfbuilder = RFBuilder(self.board,self.address,8080)
 
             self.ub = MicroBlaster()
-            rfbuilder.add(self.ub)
+            self.rfbuilder.add(self.ub)
 
-            dacs = rfbuilder.get_dacs()
-            adcs = rfbuilder.get_adcs()
+            self.dacs = self.rfbuilder.get_dacs()
+            self.adcs = self.rfbuilder.get_adcs()
 
-            rfbuilder.connect(self.ub,dacs[0])
+            self.rfbuilder.connect(self.ub,self.dacs[0])
 
-            rfbuilder.ttl.reset()
+            self.rfbuilder.ttl.reset()
 
-            rfbuilder.ttl.connect(RUN,"MB_RUN") #allows a user to trigger 
-            rfbuilder.ttl.connect(RSTN,"MB_RSTN") #allows a user to reset the MicroBlaster using software
-            rfbuilder.ttl.connect("MB_FLAG0",MB_OUT0)
-            rfbuilder.ttl.connect("MB_FLAG1",MB_OUT1)
-            rfbuilder.ttl.connect("MB_FLAG2",MB_OUT2)
-            rfbuilder.ttl.connect("MB_FLAG3",MB_OUT3)
+            self.rfbuilder.ttl.connect(RUN, "MB_RUN") #allows a user to trigger 
+            self.rfbuilder.ttl.connect(RSTN, "MB_RSTN") #allows a user to reset the MicroBlaster using software
+            self.rfbuilder.ttl.connect("MB_FLAG0", MB_OUT0)
+            self.rfbuilder.ttl.connect("MB_FLAG1", MB_OUT1)
+            self.rfbuilder.ttl.connect("MB_FLAG2", MB_OUT2)
+            self.rfbuilder.ttl.connect("MB_FLAG3", MB_OUT3)
 
             #below ANDs the TTL_IN0 (an external connection) signal and TRIGGER (a software controlled pin) signal, this is the connected to the MicroBlaster trigger line 
-            rfbuilder.ttl.connect([TTL_IN0,TRIGGER],"MB_TRIG")
-            rfbuilder.ttl.set_operation("MB_TRIG","AND") 
+            # self.rfbuilder.ttl.connect([TTL_IN0,TRIGGER], "MB_TRIG")
+            # self.rfbuilder.ttl.set_operation("MB_TRIG","AND") 
+            self.rfbuilder.ttl.connect(TRIGGER, "MB_TRIG")
+                       
+
+            # A freshly created MicroBlaster block has no instructions loaded.
+            # RFBuilder.update() validates/pushes any "dirty" block, and the
+            # MicroBlaster requires its program to end with a STOP instruction,
+            # so prime it with a harmless all-zero halt before the first update()
+            # (also puts the DDS/TTL flags into a known, quiescent state).
+            self.ub.end_program(0, 0, 0, 0, self.shortest_dur)
+
+            # Push the block/connection setup to the board before issuing any
+            # control-pin state changes, otherwise the TTL wiring above is never
+            # actually transmitted.
+            self.rfbuilder.update()
 
             #Initiate a reset, this ensures if the MicroBlaster is in an infinite loop it will break out, allowing reprogramming. Additionally ensure run and trig are low
-            rfbuilder.ttl.update_state(RSTN,0)
-            rfbuilder.ttl.update_state(RSTN,1)
-            rfbuilder.ttl.update_state(RUN,0)
-            rfbuilder.ttl.update_state(TRIGGER,0)
+            self.rfbuilder.ttl.update_state(RSTN, 0)
+            self.rfbuilder.ttl.update_state(RSTN, 1)
+            self.rfbuilder.ttl.update_state(RUN, 0)
+            # self.rfbuilder.ttl.update_state(TRIGGER, 1)
+            #enable the sinc filter to minimise rolloff from DAC
+            self.rfbuilder.sinc_filters = 1
+
+            self.connected = True
 
         except Exception:
             logger.exception("Error opening RFSoC board")
+            self.connected = False
             return False, "Error opening RFSoC board"
+
+        return True, f"Connected to RFSoC board at {self.address}"
 
 
     def disconnect(self):
+        # turn off the running sequence before closing the connection
+        self.stop()
         self.close()
 
     def close(self):
+        # The RFSoC link is a stateless HTTP API (no persistent socket to tear
+        # down), so "closing" just means stopping the running sequence/output
+        # and marking ourselves as disconnected.
         if self.connected:
-            self.board.close()
+            try:
+                self.rfbuilder.ttl.update_state(RUN, 0)
+            except Exception:
+                logger.exception("Error stopping RFSoC output during disconnect")
         self.connected = False
 
     def is_connected(self) -> bool:
-        try:
-            return self.board.is_connected()
-        except:
-            return False
+        return self.connected
 
     def start(self):
         logger.info("Starting RFSoC sequence")
+        # self.rfbuilder.ttl.update_state(RSTN, 0)
+        self.rfbuilder.ttl.update_state(RSTN, 1)
         self.rfbuilder.ttl.update_state(RUN, 1)
+
+        # self.rfbuilder.ttl.update_state(RSTN, 2)
+        # self.rfbuilder.ttl.update_state(RUN, 2)
 
     def reset(self):
         logger.info("Resetting RFSoC sequence")
@@ -116,6 +147,7 @@ class RFSOCAdapter:
 
     def stop(self):
         logger.info("Stopping RFSoC sequence")
+        self.rfbuilder.ttl.update_state(RSTN, 0)
         self.rfbuilder.ttl.update_state(RUN, 0)
 
     # def is_finished(self):
@@ -127,7 +159,7 @@ class RFSOCAdapter:
     def get_available_sequences(self):
         from seqgen.rfsoc.sequences.cw_esr import ODMRSequence
         return {
-            "cw_esr": ODMRSequence,
+            "cw_odmr": ODMRSequence,
             }
     
     def check_time_list(self, time_list):
@@ -162,7 +194,53 @@ class RFSOCAdapter:
         # check if the loaded sequence had to round any pulse durations
 
         return results
-    
+
+    def static_ttl_output(self, channel: str, state: bool):
+        if not self.connected:
+            raise RuntimeError("RFSoC is not connected")
+        # Check if works
+        if state:
+            self.rfbuilder.ttl.update_state(channel, 1)
+        else:
+            self.rfbuilder.ttl.update_state(channel, 0)
+
+    def constant_frequency_output(self, channel: str, frequency: float, phase: float = 0.0, amplitude: int | None = None):
+        """Program the MicroBlaster DDS to hold a constant (CW) frequency output.
+
+        Loads a single instruction that sets the DDS frequency/phase/amplitude
+        then halts (mirrors the Monash-RFSoC ``end_program`` usage for static
+        output), and re-arms/triggers the MicroBlaster so the new settings take
+        effect immediately.
+
+        Note: only a single DDS output (dacs[0]) is currently wired up in
+        ``open()``, so ``channel`` is accepted for API symmetry with
+        ``static_ttl_output`` but is not yet used to select between outputs.
+        """
+        if not self.connected:
+            raise RuntimeError("RFSoC is not connected")
+
+        amp = amplitude if amplitude is not None else self.ub.maxAmp
+
+        # Clear any previously loaded sequence and program the static output.
+        self.ub.instructionList = []
+        self.ub.numInstructions = 0
+        self.ub.labelDict = {}
+        self.ub.end_program(0, frequency, phase, amp, self.shortest_dur, resync=1)
+        self.rfbuilder.update()
+
+        self.start()
+
+    # functions that are used in other signal generators, but not used in the RFSoC adapter. These are here for compatibility with the PulseBlasterAdapter
+    def reset_sweep(self):
+        # not needed as the RFSoC is reset as the sequence is reset
+        logger.warning("RFSoC does not support resetting a sweep, use reset() instead")
+        return
+
+    def start_sweep(self):
+        # not needed as the RFSoC starts the sequence automatically when triggered
+        logger.warning("RFSoC does not support starting a sweep, use start() instead")
+        return
+
 if __name__ == "__main__":
     # make a mock RFSoC adapter for testing loading 
     rfsoc = RFSOCAdapter()
