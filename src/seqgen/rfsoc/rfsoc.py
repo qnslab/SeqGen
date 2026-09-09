@@ -158,11 +158,41 @@ class RFSOCAdapter:
 
     def get_available_sequences(self):
         from seqgen.rfsoc.sequences.cw_esr import ODMRSequence
+        from seqgen.rfsoc.sequences.p_esr import PulsedODMRSequence
+        from seqgen.rfsoc.sequences.rabi import RabiSequence
+        from seqgen.rfsoc.sequences.ramsey import RamseySequence
+        from seqgen.rfsoc.sequences.spin_echo import SpinEchoSequence
+        from seqgen.rfsoc.sequences.spinlocking import SpinlockSequence
+        from seqgen.rfsoc.sequences.t1 import T1Sequence
+        from seqgen.rfsoc.sequences.cpmg import CPMGSequence
+        from seqgen.rfsoc.sequences.xy import XYSequence
+        from seqgen.rfsoc.sequences.aom_delay import AomDelaySequence
         return {
             "cw_odmr": ODMRSequence,
+            "pulsed_odmr": PulsedODMRSequence,
+            "rabi": RabiSequence,
+            "ramsey": RamseySequence,
+            "spin_echo": SpinEchoSequence,
+            "spinlocking": SpinlockSequence,
+            "t1": T1Sequence,
+            "cpmg": CPMGSequence,
+            "xy": XYSequence,
+            "aom_delay": AomDelaySequence,
             }
+
+    def even_ns(self, value: float, minimum: int = 4) -> int:
+        """Round to the nearest even integer number of ns (MicroBlaster delay
+        fields must be an integer multiple of 2), with a floor of ``minimum``.
+        """
+        return max(int(round(value / 2.0)) * 2, minimum)
     
     def check_time_list(self, time_list):
+        """
+        Check the time_list for any values below the shortest duration, and round them up to the shortest 
+        duration if necessary. Also convert all values to even ns.
+        """
+        self.time_list = [self.even_ns(t) for t in time_list]
+
         for i, t in enumerate(time_list):
             if t < self.shortest_dur:
                 logger.warning(
@@ -176,6 +206,8 @@ class RFSOCAdapter:
                 else:
                     time_list[i] = self.shortest_dur
         return time_list
+
+
 
     def load_sequence(self, seq_name, **seq_kwargs):
         logger.info("Loading {} sequence", seq_name)
