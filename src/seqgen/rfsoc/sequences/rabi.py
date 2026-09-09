@@ -83,14 +83,15 @@ class RabiSequence(RFSocSequence):
             _emit_cycle(seqgen, sig_start, sig_body, self.num_loops)
             _emit_cycle(seqgen, *_strip_camera_ttl(sig_start, sig_body), self.num_readout_loops)
 
-            if ref_mode == "no_rf":
-                ref_start = (BOTH, holdFreq, PHASE_X, 0, laser_dur, False)
-                ref_body = [
-                    (CAMERA, holdFreq, PHASE_X, 0, dark_wait, False),
-                    (CAMERA, holdFreq, PHASE_X, 0, tau, True),
-                ]
-                _emit_cycle(seqgen, ref_start, ref_body, self.num_loops)
-                _emit_cycle(seqgen, *_strip_camera_ttl(ref_start, ref_body), self.num_readout_loops)
+            # if ref_mode == "no_rf":
+            # default is no RF reference.
+            ref_start = (BOTH, holdFreq, PHASE_X, 0, laser_dur, False)
+            ref_body = [
+                (CAMERA, holdFreq, PHASE_X, 0, dark_wait, False),
+                (CAMERA, holdFreq, PHASE_X, 0, tau, True),
+            ]
+            _emit_cycle(seqgen, ref_start, ref_body, self.num_loops)
+            _emit_cycle(seqgen, *_strip_camera_ttl(ref_start, ref_body), self.num_readout_loops)
 
         self.finish()
         return
