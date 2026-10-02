@@ -57,9 +57,12 @@ class RFSOCAdapter:
         try:
             self.board = RFSOC4x2()
 
-            self.rfbuilder = RFBuilder(self.board,self.address,8080)
-
+            self.rfbuilder = RFBuilder(self.board, self.address, 8080)
+            ttlDelay = -100 # ns, this is the delay from the MicroBlaster to the RFSoC TTL input, this is used to compensate for the delay in the MicroBlaster and RFSoC TTL lines
+            self.rfbuilder.mb_ttl_delay = ttlDelay
             self.ub = MicroBlaster()
+            # self.ub.mb_ttl_delay = ttlDelay
+            # self.ub = MicroBlaster(ttlDelay=ttlDelay)
             self.rfbuilder.add(self.ub)
 
             self.dacs = self.rfbuilder.get_dacs()
@@ -159,6 +162,7 @@ class RFSOCAdapter:
     def get_available_sequences(self):
         from seqgen.rfsoc.sequences.cw_esr import ODMRSequence
         from seqgen.rfsoc.sequences.p_esr import PulsedODMRSequence
+        from seqgen.rfsoc.sequences.geo_esr import GeodesicODMRSequence
         from seqgen.rfsoc.sequences.rabi import RabiSequence
         from seqgen.rfsoc.sequences.ramsey import RamseySequence
         from seqgen.rfsoc.sequences.spin_echo import SpinEchoSequence
@@ -170,6 +174,7 @@ class RFSOCAdapter:
         return {
             "cw_odmr": ODMRSequence,
             "pulsed_odmr": PulsedODMRSequence,
+            "geo_esr": GeodesicODMRSequence,
             "rabi": RabiSequence,
             "ramsey": RamseySequence,
             "spin_echo": SpinEchoSequence,

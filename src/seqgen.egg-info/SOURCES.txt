@@ -29,3 +29,14 @@ src/seqgen/pulseblaster/sequences/spin_echo.py
 src/seqgen/pulseblaster/sequences/spinlocking.py
 src/seqgen/pulseblaster/sequences/t1.py
 src/seqgen/rfsoc/rfsoc.py
+src/seqgen/rfsoc/sequences/aom_delay.py
+src/seqgen/rfsoc/sequences/base.py
+src/seqgen/rfsoc/sequences/cpmg.py
+src/seqgen/rfsoc/sequences/cw_esr.py
+src/seqgen/rfsoc/sequences/p_esr.py
+src/seqgen/rfsoc/sequences/rabi.py
+src/seqgen/rfsoc/sequences/ramsey.py
+src/seqgen/rfsoc/sequences/spin_echo.py
+src/seqgen/rfsoc/sequences/spinlocking.py
+src/seqgen/rfsoc/sequences/t1.py
+src/seqgen/rfsoc/sequences/xy.py

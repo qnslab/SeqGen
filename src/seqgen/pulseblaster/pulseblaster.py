@@ -105,9 +105,9 @@ class PulseBlasterAdapter:
         from seqgen.pulseblaster.sequences.rabi import RabiSequence
         from seqgen.pulseblaster.sequences.ramsey import RamseySequence
         from seqgen.pulseblaster.sequences.spinlocking import SpinlockSequence
-        # from seqgen.pulseblaster.sequences.spin_echo import SpinEchoSequence
-        # from seqgen.pulseblaster.sequences.t1 import T1Sequence
-        
+        from seqgen.pulseblaster.sequences.spin_echo import SpinEchoSequence
+        from seqgen.pulseblaster.sequences.t1 import T1Sequence
+
         return {
             "mock_odmr": ODMRSequence,
             "cw_odmr": ODMRSequence,
@@ -115,7 +115,8 @@ class PulseBlasterAdapter:
             "rabi": RabiSequence,
             "ramsey": RamseySequence,
             "spinlocking": SpinlockSequence,
-            # "t1": T1Sequence,
+            "spin_echo": SpinEchoSequence,
+            "t1": T1Sequence,
         }
 
     def check_time_list(self, time_list):

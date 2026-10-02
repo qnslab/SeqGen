@@ -53,11 +53,11 @@ sequence_params = {}
 
 # --- Choose which sequence to run ---------------------------------------
 # One of: "rabi", "ramsey", "spin_echo", "spinlocking", "t1", "cpmg", "xy"
-SEQUENCE_NAME = "xy"
+SEQUENCE_NAME = "geo_esr"
 
 # Common settings shared by every sequence.
 frequency = 2e6          # Hz, fixed RF frequency (e.g. the ESR resonance)
-exposure_time = 0.01e-3      # s, signal (and reference) exposure per point
+exposure_time = .1e-3      # s, signal (and reference) exposure per point
 camera_trig_time = 0.001e-3    # s, camera trigger/readout time per point
 rf_amplitude = 100          # percentage (0-100) of max DDS amplitude
 laser_dur = 1e-6            # s, laser initialisation pulse duration
@@ -66,6 +66,21 @@ rf_delay = 0                # s, additional dark wait before the RF pulse(s)
 
 # Per-sequence sweep points and extra parameters.
 SEQUENCE_PARAMS = {
+    "cw_odmr": dict(
+        ref_mode="no_rf",
+        frequency_list=np.linspace(2e6, 5e6, 4).tolist(),  # RF freq
+    ),
+    "pulsed_odmr": dict(
+        ref_mode="no_rf",
+        frequency_list=np.linspace(2e6, 5e6, 4).tolist(),  # RF freq
+    ),
+    "geo_esr": dict(
+        ref_mode="no_rf",
+        frequency_list=np.linspace(2e6, 5e6, 4).tolist(),
+        geo_frequency_width=1e6,
+        geo_num_points=5,
+        rf_dur=1e-6,
+    ),
     "rabi": dict(
         ref_mode="no_rf",
         sweep_x=np.linspace(1e-6, 5e-6, 5).tolist(),  # RF pulse duration
@@ -142,7 +157,7 @@ try:
 
     print("Sequence running. Press Ctrl+C to stop.")
     # while True:
-    time.sleep(1)
+    time.sleep(2)
 except KeyboardInterrupt:
     print("Stopping...")
 finally:

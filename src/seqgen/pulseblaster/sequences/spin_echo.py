@@ -12,12 +12,13 @@ except Exception:
     logger = logging.getLogger(__name__)
 
 from seqgen.pulse_kernel import PulseKernel
+from seqgen.pulseblaster.sequences.base import PulseBlasterSequence
 
 if typing.TYPE_CHECKING:
     from ..pulseblaster import PulseBlaster
 
 
-def seq_spin_echo(
+def _seq_spin_echo(
     seqgen: PulseBlaster,
     sequence_params: dict[str, float],
     sweep_x: np.ndarray = None,
@@ -161,3 +162,45 @@ def seq_spin_echo(
     seqgen.stop_programming()
 
     return pk_sig, pk_ref
+
+
+class SpinEchoSequence(PulseBlasterSequence):
+    """PulseBlaster spin echo sequence builder."""
+
+    sequence_name = "Spin Echo"
+    ch_names = ["laser", "rf_x", "rf_-x", "camera", "rf_trig"]
+
+    def load(
+        self,
+        ref_mode: str = "no_rf",
+        sweep_x: np.ndarray = None,
+        pi_dur: float = 100e-9,
+        pi_2_dur: float = 100e-9,
+        laser_dur: float = 3e-3,
+        laser_delay: float = 0,
+        laser_to_rf_delay: float = 300e-9,
+        rf_delay: float = 0,
+        exposure_time: float = 30e-3,
+        avg_per_point: int = 1,
+        camera_trig_time: float = 0,
+        exp_t: float = None,
+        **kwargs,
+    ):
+        if exp_t is not None:
+            exposure_time = exp_t
+        return _seq_spin_echo(
+            self.seqgen,
+            self.sequence_params,
+            sweep_x=sweep_x,
+            laser_dur=laser_dur,
+            pi_dur=pi_dur,
+            pi_2_dur=pi_2_dur,
+            laser_delay=laser_delay,
+            laser_to_rf_delay=laser_to_rf_delay,
+            rf_delay=rf_delay,
+            ref_mode=ref_mode,
+            exp_t=exposure_time,
+            avg_per_point=avg_per_point,
+            camera_trig_time=camera_trig_time,
+            **kwargs,
+        )
