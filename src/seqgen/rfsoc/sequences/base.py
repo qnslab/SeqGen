@@ -16,6 +16,7 @@ ns = 1e-9
 # on/off via the amplitude field of each instruction, rather than a TTL bit.
 LASER = 0b01
 CAMERA = 0b10
+NONE = 0b00
 BOTH = LASER | CAMERA
 
 # phase (in degrees) for each pulse axis, leveraging the MicroBlaster's

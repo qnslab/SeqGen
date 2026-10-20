@@ -39,6 +39,8 @@ class GeodesicODMRSequence(RFSocSequence):
             + f"\nRF delay: {self.rf_delay} ns"
             + f"\nNumber of loops: {self.num_loops}"
             + f"\nNumber of readout loops: {self.num_readout_loops}"
+            + f"\nGeodesic frequency width: {self.geo_frequency_width} Hz"
+            + f"\nGeodesic number of points: {self.geo_num_points}"
         )
 
 
@@ -68,6 +70,9 @@ class GeodesicODMRSequence(RFSocSequence):
         self.laser_delay = _even_ns(laser_delay * 1e9)
         self.laser_to_rf_delay = _even_ns(laser_to_rf_delay * 1e9)
         dark_wait = self.laser_to_rf_delay + self.rf_delay
+
+        self.geo_frequency_width = geo_frequency_width
+        self.geo_num_points = geo_num_points
 
         # determine the number of loops of the sequence
         # this shortest sequence is laser_dur + dark_wait + rf_dur

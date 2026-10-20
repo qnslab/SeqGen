@@ -52,14 +52,14 @@ ch_defs = {
 sequence_params = {}
 
 # --- Choose which sequence to run ---------------------------------------
-# One of: "rabi", "ramsey", "spin_echo", "spinlocking", "t1", "cpmg", "xy"
-SEQUENCE_NAME = "geo_esr"
+# One of: "rabi", "geo_rabi", "geo_rabi_subroutine", "ramsey", "spin_echo", "geo_spin_echo", "spinlocking", "t1", "cpmg", "xy"
+SEQUENCE_NAME = "rabi"
 
 # Common settings shared by every sequence.
 frequency = 2e6          # Hz, fixed RF frequency (e.g. the ESR resonance)
 exposure_time = .1e-3      # s, signal (and reference) exposure per point
 camera_trig_time = 0.001e-3    # s, camera trigger/readout time per point
-rf_amplitude = 100          # percentage (0-100) of max DDS amplitude
+rf_amplitude = 10          # percentage (0-100) of max DDS amplitude
 laser_dur = 1e-6            # s, laser initialisation pulse duration
 laser_to_rf_delay = 300e-9   # s, dark wait between laser and first RF pulse
 rf_delay = 0                # s, additional dark wait before the RF pulse(s)
@@ -85,6 +85,19 @@ SEQUENCE_PARAMS = {
         ref_mode="no_rf",
         sweep_x=np.linspace(1e-6, 5e-6, 5).tolist(),  # RF pulse duration
     ),
+    "geo_rabi": dict(
+        ref_mode="no_rf",
+        sweep_x=[11, 21],  # frequency steps in each direction: up then down
+        geo_frequency_width=1e6,
+        rf_dur=100e-9,
+    ),
+    "geo_rabi_subroutine": dict(
+        ref_mode="no_rf",
+        sweep_x=[11, 21],  # number of complete up/down geodesic sweeps
+        geo_frequency_width=1e6,
+        geo_num_points=21,
+        pi_dur=100e-9,
+    ),
     "ramsey": dict(
         ref_mode="no_rf",
         sweep_x=np.linspace(1e-6, 5e-6, 5).tolist(),  # free evolution time tau
@@ -94,6 +107,14 @@ SEQUENCE_PARAMS = {
         ref_mode="no_rf",
         sweep_x=np.linspace(1e-6, 10e-6, 5).tolist(),  # total free evolution time tau
         pi_dur=500e-9,
+        pi_2_dur=250e-9,
+    ),
+    "geo_spin_echo": dict(
+        ref_mode="no_rf",
+        sweep_x=np.linspace(2e-6, 10e-6, 5).tolist(),  # total echo evolution time
+        geo_frequency_width=1e6,
+        geo_num_points=5,
+        rf_dur=100e-9,
         pi_2_dur=250e-9,
     ),
     "spinlocking": dict(

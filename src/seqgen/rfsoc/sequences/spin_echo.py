@@ -69,8 +69,9 @@ class SpinEchoSequence(RFSocSequence):
         # convention as the PulseBlaster spin echo sequence
         tau_ns = [t * 1e9 for t in np.asarray(sweep_x).tolist()]
         self.time_list = [_even_ns(t) for t in tau_ns]
-        tau1_list = [_even_ns(np.ceil(t / 2)) for t in tau_ns]
-        tau2_list = [_even_ns(np.floor(t / 2)) for t in tau_ns]
+        # make the tau list a remove the pi duration time so that the evolution time is correct, then split the remaining time evenly between the two tau periods
+        tau1_list = [_even_ns(np.ceil((t - self.pi_dur) / 2)) for t in tau_ns]
+        tau2_list = [_even_ns(np.floor((t - self.pi_dur) / 2)) for t in tau_ns]
 
         min_tau = min(self.time_list)
         loop_time = laser_dur + dark_wait + 2 * self.pi_2_dur + self.pi_dur + min_tau

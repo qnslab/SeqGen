@@ -163,6 +163,8 @@ class RFSOCAdapter:
         from seqgen.rfsoc.sequences.cw_esr import ODMRSequence
         from seqgen.rfsoc.sequences.p_esr import PulsedODMRSequence
         from seqgen.rfsoc.sequences.geo_esr import GeodesicODMRSequence
+        from seqgen.rfsoc.sequences.geo_spin_echo import GeodesicSpinEchoSequence
+        from seqgen.rfsoc.sequences.geo_rabi import GeodesicRabiSequence
         from seqgen.rfsoc.sequences.rabi import RabiSequence
         from seqgen.rfsoc.sequences.ramsey import RamseySequence
         from seqgen.rfsoc.sequences.spin_echo import SpinEchoSequence
@@ -172,17 +174,24 @@ class RFSOCAdapter:
         from seqgen.rfsoc.sequences.xy import XYSequence
         from seqgen.rfsoc.sequences.aom_delay import AomDelaySequence
         return {
+            # ODMR and pulsed ESR sequences
             "cw_odmr": ODMRSequence,
             "pulsed_odmr": PulsedODMRSequence,
-            "geo_esr": GeodesicODMRSequence,
+            # Time-domain sequences
             "rabi": RabiSequence,
             "ramsey": RamseySequence,
             "spin_echo": SpinEchoSequence,
             "spinlocking": SpinlockSequence,
             "t1": T1Sequence,
+            # Dynamical decoupling sequences
             "cpmg": CPMGSequence,
             "xy": XYSequence,
+            # System characterization sequences
             "aom_delay": AomDelaySequence,
+            # Geodesic sequences
+            "geo_odmr": GeodesicODMRSequence,
+            "geo_spin_echo": GeodesicSpinEchoSequence,
+            "geo_rabi": GeodesicRabiSequence,
             }
 
     def even_ns(self, value: float, minimum: int = 4) -> int:
